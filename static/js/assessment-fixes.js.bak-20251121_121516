@@ -1,41 +1,3 @@
-/* === saveAssessment helper (INSERTED BY SAFE PATCH) === */
-async function saveAssessment(payload) {
-  const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-  const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
-  try {
-    const res = await fetch('/patient/api/save-assessment', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrfToken || ''
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const text = await res.text().catch(() => '');
-    if (!res.ok) {
-      console.error('saveAssessment failed', res.status, text);
-      const errEl = document.getElementById('assessment-error');
-      if (errEl) {
-        errEl.textContent = 'Failed to save assessment. Try again later.';
-        errEl.classList.remove('hidden');
-      }
-      throw new Error('Save failed: ' + res.status + ' ' + text);
-    }
-
-    try { return JSON.parse(text); } catch (e) { return text; }
-  } catch (err) {
-    console.error('saveAssessment error', err);
-    const errEl = document.getElementById('assessment-error');
-    if (errEl) {
-      errEl.textContent = 'Failed to save assessment. Try again later.';
-      errEl.classList.remove('hidden');
-    }
-    throw err;
-  }
-}
-/* === end saveAssessment helper === */
 // static/js/assessment-fixes.js
 // Robust bindings and showQuestion() implementation
 
@@ -315,24 +277,37 @@ function openAssessmentModal(options) {
   }
 
   async function completeAssessment() {
-    if (window.__assessmentSaving) return;
-    window.__assessmentSaving = true;
-    try {
-        const payload = {
-        assessment_type: window.currentAssessment.title,
-        score: window.assessmentAnswers.standard.reduce((a, b) => a + b, 0),
-        responses: window.assessmentAnswers.standard,
-        contextual_responses: window.assessmentAnswers.contextual
-        };
+    const payload = {
+      assessment_type: window.currentAssessment.title,
+      score: window.assessmentAnswers.standard.reduce((a, b) => a + b, 0),
+      responses: window.assessmentAnswers.standard,
+      contextual_responses: window.assessmentAnswers.contextual
+    };
 
-        const json = await saveAssessment(payload);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    try {
+      const res = await fetch('/api/save-assessment', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
         alert(json?.message || 'Assessment saved.');
         const modal = document.getElementById('assessmentModal');
         if (modal) hideModal(modal);
+      } else {
+        alert(json?.message || 'Failed to save assessment.');
+        console.warn('Assessment save failed', res.status, json);
+      }
     } catch (err) {
-        // Error is handled by saveAssessment
-    } finally {
-        setTimeout(() => { window.__assessmentSaving = false; }, 300);
+      console.error('Error saving assessment', err);
+      alert('Network error saving assessment.');
     }
   }
 
