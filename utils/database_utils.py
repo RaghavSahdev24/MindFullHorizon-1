@@ -1,5 +1,6 @@
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
+from extensions import db
 
 def check_database():
     """Check if the database is properly initialized and accessible."""
